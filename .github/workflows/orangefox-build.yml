@@ -1,17 +1,25 @@
-name: Build OrangeFox Recovery
+name: Update & Build OrangeFox Recovery
 
 on:
-  workflow_dispatch:  # lets you trigger manually from GitHub Actions
+  workflow_dispatch: # Run manually from Actions tab
+  push:
+    branches: [ "fox_10.0" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout device tree repo
+      - name: Checkout your repo
         uses: actions/checkout@v4
 
-      - name: Install build dependencies
+      - name: Pull latest OrangeFox upstream
+        run: |
+          git remote add upstream https://gitlab.com/OrangeFox/OrangeFox.git || true
+          git fetch upstream fox_10.0
+          git merge upstream/fox_10.0 --no-edit || true
+
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf \
@@ -19,28 +27,13 @@ jobs:
             libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev imagemagick \
             python3 python-is-python3
 
-      - name: Download OrangeFox source
+      - name: Build recovery
         run: |
-          mkdir ofox
-          cd ofox
-          git clone https://gitlab.com/OrangeFox/sync.git
-          cd sync
-          ./orangefox_sync.sh --branch fox_13.0 --path ../src
-
-      - name: Copy device tree into source
-        run: |
-          mkdir -p ofox/src/device/infinix/X682C
-          cp -r device/* ofox/src/device/infinix/X682C/
-
-      - name: Build OrangeFox
-        run: |
-          cd ofox/src
-          source build/envsetup.sh
-          lunch omni_X682C-eng
-          mka recoveryimage
+          make clean
+          make -j$(nproc)
 
       - name: Upload recovery image
         uses: actions/upload-artifact@v4
         with:
-          name: orangefox-recovery-X682C
-          path: ofox/src/out/target/product/X682C/recovery.img
+          name: orangefox-recovery-latest
+          path: out/target/product/*/recovery.img
