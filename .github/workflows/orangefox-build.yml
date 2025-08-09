@@ -1,0 +1,46 @@
+name: Build OrangeFox Recovery
+
+on:
+  workflow_dispatch:  # lets you trigger manually from GitHub Actions
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout device tree repo
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf \
+            lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev \
+            libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev imagemagick \
+            python3 python-is-python3
+
+      - name: Download OrangeFox source
+        run: |
+          mkdir ofox
+          cd ofox
+          git clone https://gitlab.com/OrangeFox/sync.git
+          cd sync
+          ./orangefox_sync.sh --branch fox_13.0 --path ../src
+
+      - name: Copy device tree into source
+        run: |
+          mkdir -p ofox/src/device/infinix/X682C
+          cp -r device/* ofox/src/device/infinix/X682C/
+
+      - name: Build OrangeFox
+        run: |
+          cd ofox/src
+          source build/envsetup.sh
+          lunch omni_X682C-eng
+          mka recoveryimage
+
+      - name: Upload recovery image
+        uses: actions/upload-artifact@v4
+        with:
+          name: orangefox-recovery-X682C
+          path: ofox/src/out/target/product/X682C/recovery.img
